@@ -1,0 +1,178 @@
+const express = require('express');
+const mongoose = require('mongoose');
+const bodyParser = require('body-parser');
+const app = express();
+const port = 3000;
+
+mongoose.connect('mongodb://localhost:27017/movie_db', {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+});
+
+const movieSchema = new mongoose.Schema({
+    _id:Number,
+    title: String,
+    Director: String,
+    Actor: String
+});
+
+const Movie = mongoose.model('Movie', movieSchema);
+
+app.use(bodyParser.json());
+
+// Endpoint 1: Get a list of all movies
+app.get('/api/movies', async (req, res) => {
+    try {
+        const movies = await Movie.find();
+        res.json(movies);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Endpoint 2: Get details of a specific movie by ID
+app.get('/api/movies/:id', async (req, res) => {
+    const movieId = req.params.id;
+    try {
+        const movie = await Movie.findById(movieId);
+        if (!movie) {
+            return res.status(404).json({ error: 'Movie not found' });
+        }
+        res.json(movie);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Endpoint 3: Add a new movie
+app.post('/api/movies', async (req, res) => {
+    const { title, Director, Actor } = req.body;
+    try {
+        const movie = new Movie({ title, Director, Actor });
+        const result = await movie.save();
+        res.json(result);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Endpoint 4: Update details of an existing movie by ID
+app.put('/api/movies/:id', async (req, res) => {
+    const movieId = req.params.id;
+    const { title, Director, Actor } = req.body;
+    try {
+        const movie = await Movie.findByIdAndUpdate(movieId, { title, Director, Actor }, { new: true });
+        if (!movie) {
+            return res.status(404).json({ error: 'Movie not found' });
+        }
+        res.json(movie);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Endpoint 5: Delete a movie by ID
+app.delete('/api/movies/:id', async (req, res) => {
+    const movieId = req.params.id;
+    try {
+        const movie = await Movie.findByIdAndRemove(movieId);
+        if (!movie) {
+            return res.status(404).json({ error: 'Movie not found' });
+        }
+        res.json({ message: 'Movie deleted successfully' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.listen(port, () => {
+    console.log(`Server is running on port ${port}`);
+});
+
+//angular Interface
+
+import { NgModule } from '@angular/core';
+import { BrowserModule } from '@angular/platform-browser';
+import { RouterModule } from '@angular/router';
+import { HttpClientModule, HttpClient } from '@angular/common/http';
+import { FormsModule } from '@angular/forms';
+
+const routes = [
+  { path: 'movies', component: MovieListComponent },
+  { path: 'add-movie', component: AddMovieComponent },
+  { path: '', redirectTo: '/movies', pathMatch: 'full' },
+];
+
+@Component({
+  selector: 'app-movie-list',
+  template: `
+    <h2>Movies</h2>
+    <ul>
+      <li *ngFor="let movie of movies">{{ movie.title }}</li>
+    </ul>
+    <a routerLink="/add-movie">Add Movie</a>
+  `,
+})
+class MovieListComponent {
+  movies = [];
+
+  constructor(private http: HttpClient) {
+    http.get('http://localhost:3000/api/movies').subscribe((data: any) => {
+      this.movies = data;
+    });
+  }
+}
+
+@Component({
+  selector: 'app-add-movie',
+  template: `
+    <h2>Add a New Movie</h2>
+    <form (submit)="addMovie()">
+      <label for="title">Title:</label>
+      <input type="text" id="title" [(ngModel)]="newMovie.title" name="title" required>
+      
+      <label for="director">Director:</label>
+      <input type="text" id="director" [(ngModel)]="newMovie.Director" name="director" required>
+      
+      <label for "actor">Actor:</label>
+      <input type="text" id="actor" [(ngModel)]="newMovie.Actor" name="actor" required>
+      
+      <button type="submit">Add</button>
+    </form>
+  `,
+})
+class AddMovieComponent {
+  newMovie = {};
+
+  constructor(private http: HttpClient) {}
+
+  addMovie() {
+    this.http.post('http://localhost:3000/api/movies', this.newMovie).subscribe(() => {
+      alert('Movie added successfully.');
+      this.newMovie = {};
+    });
+  }
+}
+
+@NgModule({
+  declarations: [MovieListComponent, AddMovieComponent],
+  imports: [
+    BrowserModule,
+    FormsModule,
+    HttpClientModule,
+    RouterModule.forRoot(routes),
+  ],
+  bootstrap: [MovieListComponent],
+})
+class AppModule {}
+
+@NgModule({
+  declarations: [AppModule],
+  imports: [BrowserModule],
+  bootstrap: [AppModule],
+})(class {});
